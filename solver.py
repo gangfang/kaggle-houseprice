@@ -15,19 +15,21 @@ def acquire_data():
   test_df = pd.read_csv('test.csv', header=0)
 
 
-
-def anaylze_data():
-  print('--'*10)
-  print('Head:\n')
+def understand_data():
+  log_if_missing_data_exists()
+  print('\n','--'*10)
+  print('Head:')
   print(train_df.head())  
-  print('--'*10)
-  print('Info:\n')
+  print('\n','--'*10)
+  print('Info:')
   print(train_df.info())
-  print('--'*10)
-  print('Describe:\n')
+  print('\n','--'*10)
+  print('Describe:')
   print(train_df.describe())
   make_violinplot_overallqual_saleprice()
 
+def log_if_missing_data_exists():
+  print('There is data missing in dataset: ', 'YES' if train_df.isnull().sum().max() > 0 else 'NO')
 
 def make_boxplot_neighborhood_saleprice():
   matrix_Neighborhood_SalePrice = pd.concat([train_df['Neighborhood'], train_df['SalePrice']], axis=1)
