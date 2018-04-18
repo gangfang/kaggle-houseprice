@@ -4,10 +4,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 
+import warnings
+warnings.filterwarnings(action="ignore", module="scipy", message="^internal gelsd")
 
 def main():
   acquire_data()
-  # understand_data()
+  understand_data()
   prepare_data()
   make_train_test_set()
   train_model()
@@ -29,7 +31,6 @@ def understand_data():
   print('\n','--'*30,'\nDescribe: \n',train_df.describe())
 
   
-
 def prepare_data():
   global train_df, test_df
   train_df = drop_useless_features_of(train_df)
@@ -38,11 +39,10 @@ def prepare_data():
   handle_missing_data_for(test_df)
   train_df = one_hot_encode_categorical_features_of(train_df)
   test_df = one_hot_encode_categorical_features_of(test_df)
-
+  
   for trainset_feature in train_df.columns.values:
     if trainset_feature not in test_df.columns.values and trainset_feature != 'SalePrice':
       test_df[trainset_feature] = 0
-      
 
 def drop_useless_features_of(dataset_df):
   return dataset_df.drop(['GarageYrBlt', 'Id'], axis=1)
@@ -52,7 +52,7 @@ def handle_missing_data_for(dataset_df):
   dataset_df['MasVnrArea'].fillna(dataset_df['MasVnrArea'].dropna().median(), inplace=True)
   dataset_df['MasVnrType'].fillna('None', inplace=True)
   dataset_df['Electrical'].fillna('SBrkr', inplace=True)
-  if 'SalePrice' not in dataset_df.columns.values:
+  if isTestset(dataset_df):
     dataset_df['BsmtFinSF1'].fillna(dataset_df['BsmtFinSF1'].dropna().median(), inplace=True)
     dataset_df['BsmtFinSF2'].fillna(dataset_df['BsmtFinSF2'].dropna().median(), inplace=True)
     dataset_df['BsmtUnfSF'].fillna(dataset_df['BsmtUnfSF'].dropna().median(), inplace=True)
@@ -101,7 +101,7 @@ def write_result_csv():
   TESTSET_SIZE = test_df.shape[0]
   END_ID = START_ID + TESTSET_SIZE
   for i in range(START_ID, END_ID):
-    current_house = str(i) + ',' + str(-1 * prediction_result[i - START_ID]) + '\n'
+    current_house = str(i) + ',' + str(prediction_result[i - START_ID]) + '\n'
     f.write(current_house)
 
 
@@ -110,5 +110,24 @@ def log_if_missing_data_exists(dataset_df):
 
 
 
-
 main()
+
+
+
+# def experiment():
+#   plot_comparison()
+
+
+# def plot_comparison():
+#   my_result = pd.read_csv('submission.csv', header=0)
+#   sample_result = pd.read_csv('sample_submission.csv', header=0)
+#   my_result['result_no'] = 'my_result'
+#   sample_result['result_no'] = 'sample_result'
+#   my_result = my_result.drop(['Id'], axis=1)
+#   sample_result = sample_result.drop(['Id'], axis=1)
+#   mixed_result = pd.concat([my_result, sample_result], axis=0)
+#   sns.boxplot(x='result_no', y="SalePrice", data=mixed_result)
+#   plt.show()
+
+
+# experiment()
