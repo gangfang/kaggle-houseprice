@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 
-import warnings
-warnings.filterwarnings(action="ignore", module="scipy", message="^internal gelsd")
 
 def main():
   acquire_data()
@@ -63,6 +61,12 @@ def handle_missing_data_for(dataset_df):
     dataset_df['BsmtHalfBath'].fillna(0, inplace=True)
     dataset_df['GarageCars'].fillna(2, inplace=True)
     dataset_df['GarageArea'].fillna(dataset_df['GarageArea'].dropna().median(), inplace=True)
+
+def isTestset(dataset_df):
+  if 'SalePrice' not in dataset_df.columns.values:
+    return True
+  else:
+    return False
 
 def one_hot_encode_categorical_features_of(dataset_df):
   return pd.get_dummies(dataset_df, dummy_na=True, drop_first=True)
