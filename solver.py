@@ -19,30 +19,25 @@ def main():
   acquire_data()
   # understand_data()
   prepare_data()
-  make_train_test_set()
+  split_train_test_sets_at(trainset_length)
   train_model()
   predict()
-  # write_result_csv()
+  write_result_csv()
 
 
 
 def acquire_data():
-  global train_df, test_df, target_col, combined_df
+  global train_df, test_df, target_col
   train_df = pd.read_csv('train.csv', header=0)
   test_df = pd.read_csv('test.csv', header=0)
   target_col = train_df[TARGET]
   train_df = train_df.drop([TARGET], axis=1)
-  combined_df = pd.concat([train_df, test_df])
 
 
 def understand_data():
-  # print(combined_df.head())  
-  # print(combined_df.describe())
-  # print(combined_df.info())
-  print(train_df.shape)
-  print(test_df.shape)
-  print(combined_df.iloc[:1460, :].shape)
-  print(combined_df.iloc[1460:, :].shape)
+  print(combined_df.head())  
+  print(combined_df.describe())
+  print(combined_df.info())
 
 
 def plot_top_corr_heatmap():
@@ -55,13 +50,27 @@ def plot_top_corr_heatmap():
 
 
 def prepare_data():
-  global train_df, test_df, combined_df
+  global train_df, test_df, combined_df, target_col, trainset_length
+  train_df, target_col = remove_outliers_in(train_df, target_col)
+  combined_df = concat_train_test_data(train_df, test_df)
   combined_df = grasp_features_of_top_corr(combined_df)
   # combined_df = drop_useless_features_from(combined_df)
   handle_missing_data_for(combined_df)
   combined_df = create_new_features_for(combined_df)
   # combined_df = one_hot_encode_categorical_features_of(combined_df)
+  trainset_length = get_trainset_length(train_df)
   
+
+def remove_outliers_in(train_df, target_col):
+  outliers_idx = train_df[(train_df['GrLivArea']>4000)].index
+  train_df = train_df.drop(outliers_idx)
+  target_col = target_col.drop(outliers_idx)
+  return (train_df, target_col)
+
+
+def concat_train_test_data(train_df, test_df):
+  return pd.concat([train_df, test_df])
+
 
 def grasp_features_of_top_corr(dataset_df):
   selected_features = ['OverallQual', 'GrLivArea', 'GarageCars', 'GarageArea', '1stFlrSF', 'FullBath', 'TotRmsAbvGrd', 'YearBuilt']
@@ -96,14 +105,18 @@ def one_hot_encode_categorical_features_of(dataset_df):
   return pd.get_dummies(dataset_df, dummy_na=True, drop_first=True)
 
 
+def get_trainset_length(train_df):
+  return train_df.shape[0]
 
-def make_train_test_set():
-  # global X_train, X_pred, y_train
-  # X_train = combined_df.iloc[:1460, :]
-  # X_pred = combined_df.iloc[1460:, :]
-  # y_train = target_col
-  global X_train, X_test, y_train, y_test
-  X_train, X_test, y_train, y_test = train_test_split(combined_df.iloc[:1460, :], target_col, random_state=3)
+
+def split_train_test_sets_at(trainset_length):
+  global X_train, X_pred, y_train
+  X_train = combined_df.iloc[:trainset_length, :]
+  X_pred = combined_df.iloc[trainset_length:, :]
+  y_train = target_col
+
+  # global X_train, X_test, y_train, y_test
+  # X_train, X_test, y_train, y_test = train_test_split(combined_df.iloc[:trainset_length, :], target_col, random_state=3)
 
 
 
@@ -114,30 +127,29 @@ def train_model():
 
 
 def predict():
-  # global y_pred
-  # y_pred = linear_regression.predict(X_pred)
+  global y_pred
+  y_pred = linear_regression.predict(X_pred)
 
-  y_pred_on_trainset = linear_regression.predict(X_train)
-  y_pred = linear_regression.predict(X_test)
-
-  y_train_log = np.log(y_train)
-  y_pred_on_trainset_log = np.log(y_pred_on_trainset)
-  y_test_log = np.log(y_test)
-  y_pred_log = np.log(y_pred)
-  print('training RMSE: ', np.sqrt(mean_squared_error(y_pred_on_trainset_log, y_train_log)))
-  print('testing RMSE: ', np.sqrt(mean_squared_error(y_test_log, y_pred_log)))
+  # y_pred_on_trainset = linear_regression.predict(X_train)
+  # y_pred = linear_regression.predict(X_test)
+  # y_train_log = np.log(y_train)
+  # y_pred_on_trainset_log = np.log(y_pred_on_trainset)
+  # y_test_log = np.log(y_test)
+  # y_pred_log = np.log(y_pred)
+  # print('training RMSE: ', np.sqrt(mean_squared_error(y_pred_on_trainset_log, y_train_log)))
+  # print('testing RMSE: ', np.sqrt(mean_squared_error(y_test_log, y_pred_log)))
 
 
 
 def write_result_csv():
   filename = 'submission.csv'
-  f = open(filename, 'w')
-
-  headers = 'Id,SalePrice\n'
-  f.write(headers)
-  START_ID = train_df.shape[0] + 1
+  START_ID = 1461
   TESTSET_SIZE = test_df.shape[0]
   END_ID = START_ID + TESTSET_SIZE
+  headers = 'Id,SalePrice\n'
+
+  f = open(filename, 'w')
+  f.write(headers)
   for i in range(START_ID, END_ID):
     current_house = str(i) + ',' + str(y_pred[i - START_ID]) + '\n'
     f.write(current_house)
