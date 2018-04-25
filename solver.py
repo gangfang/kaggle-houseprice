@@ -22,6 +22,7 @@ def main():
   do_cross_validation()
   train_model()
   predict()
+  exponentiate_pred_result()
   write_result_csv()
 
 
@@ -29,7 +30,7 @@ def main():
 def acquire_data():
   TARGET = 'SalePrice'
   global train_df, test_df, target_col
-  
+
   train_df = pd.read_csv('train.csv', header=0)
   test_df = pd.read_csv('test.csv', header=0)
   target_col = train_df[TARGET]
@@ -64,6 +65,7 @@ def prepare_data():
   combined_df = one_hot_encode_categorical_features_of(combined_df)
   trainset_length = get_trainset_length(train_df)
   split_train_test_sets_at(trainset_length)
+  log_transform(target_col)
   
 
 def remove_outliers_in(train_df, target_col):
@@ -140,10 +142,14 @@ def get_trainset_length(train_df):
 
 
 def split_train_test_sets_at(trainset_length):
-  global X_train, X_pred, y_train
+  global X_train, X_pred
   X_train = combined_df.iloc[:trainset_length, :]
   X_pred = combined_df.iloc[trainset_length:, :]
-  y_train = target_col
+  
+  
+def log_transform(target_col):
+  global y_train 
+  y_train = np.log1p(target_col)
 
 
 
@@ -152,11 +158,12 @@ def do_cross_validation():
   scores = cross_validate(linear_regression, 
                            X_train, y_train, 
                            cv=10, return_train_score=True,
-                           scoring='neg_mean_squared_log_error')
-  test_RMSE = np.sqrt(-1 * scores['test_score']).mean()
+                           scoring='neg_mean_squared_error')
   train_RMSE = np.sqrt(-1 * scores['train_score']).mean()
-  print('test_RMSE: ', test_RMSE)
+  test_RMSE = np.sqrt(-1 * scores['test_score']).mean()
   print('train_RMSE: ', train_RMSE)
+  print('test_RMSE: ', test_RMSE)
+
 
 
 def train_model():
@@ -165,9 +172,17 @@ def train_model():
   linear_regression.fit(X_train, y_train)
 
 
+
 def predict():
   global y_pred
   y_pred = linear_regression.predict(X_pred)
+  
+
+
+def exponentiate_pred_result():
+  global y_pred
+  y_pred = np.exp(y_pred)
+
 
 
 def write_result_csv():
@@ -184,12 +199,6 @@ def write_result_csv():
     f.write(current_house)
   
   print('File writing done.')
-
-
-def log_if_missing_data_exists(dataset_df):
-  print('There is data missing in dataset: ', 
-        'YES' if dataset_df.isnull().sum().max() > 0 else 'NO')
-
 
 
 
