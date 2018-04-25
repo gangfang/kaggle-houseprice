@@ -63,8 +63,7 @@ def prepare_data():
   combined_df = transform_features_for(combined_df)
   combined_df = create_new_features_for(combined_df)
   combined_df = one_hot_encode_categorical_features_of(combined_df)
-  trainset_length = get_trainset_length(train_df)
-  split_train_test_sets_at(trainset_length)
+  split_train_test_data()
   log_transform(target_col)
   
 
@@ -137,15 +136,17 @@ def one_hot_encode_categorical_features_of(dataset_df):
   # return pd.get_dummies(dataset_df, dummy_na=True, drop_first=True)
 
 
-def get_trainset_length(train_df):
-  return train_df.shape[0]
+def split_train_test_data():
+  trainset_length = get_trainset_length(train_df)
 
-
-def split_train_test_sets_at(trainset_length):
   global X_train, X_pred
   X_train = combined_df.iloc[:trainset_length, :]
   X_pred = combined_df.iloc[trainset_length:, :]
-  
+
+
+def get_trainset_length(train_df):
+  return train_df.shape[0]
+
   
 def log_transform(target_col):
   global y_train 
