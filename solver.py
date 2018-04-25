@@ -5,30 +5,31 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 # import xgboost as xgb
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import cross_validate
 
 np.set_printoptions(threshold=sys.maxsize)
 
 import warnings
 warnings.filterwarnings(action="ignore", module="scipy", message="^internal gelsd")
 
-TARGET = 'SalePrice'
+
 
 
 def main():
   acquire_data()
   # understand_data()
   prepare_data()
-  split_train_test_sets_at(trainset_length)
+  do_cross_validation()
   train_model()
   predict()
-  # write_result_csv()
+  write_result_csv()
 
 
 
 def acquire_data():
+  TARGET = 'SalePrice'
   global train_df, test_df, target_col
+  
   train_df = pd.read_csv('train.csv', header=0)
   test_df = pd.read_csv('test.csv', header=0)
   target_col = train_df[TARGET]
@@ -52,7 +53,7 @@ def plot_top_corr_heatmap():
 
 
 def prepare_data():
-  global train_df, test_df, combined_df, target_col, trainset_length
+  global train_df, test_df, combined_df, target_col
   train_df, target_col = remove_outliers_in(train_df, target_col)
   combined_df = concat_train_test_data(train_df, test_df)
   combined_df = grasp_features_of_top_corr(combined_df)
@@ -62,6 +63,7 @@ def prepare_data():
   combined_df = create_new_features_for(combined_df)
   combined_df = one_hot_encode_categorical_features_of(combined_df)
   trainset_length = get_trainset_length(train_df)
+  split_train_test_sets_at(trainset_length)
   
 
 def remove_outliers_in(train_df, target_col):
@@ -138,16 +140,23 @@ def get_trainset_length(train_df):
 
 
 def split_train_test_sets_at(trainset_length):
-  # global X_train, X_pred, y_train
-  # X_train = combined_df.iloc[:trainset_length, :]
-  # X_pred = combined_df.iloc[trainset_length:, :]
-  # y_train = target_col
+  global X_train, X_pred, y_train
+  X_train = combined_df.iloc[:trainset_length, :]
+  X_pred = combined_df.iloc[trainset_length:, :]
+  y_train = target_col
 
-  global X_train, X_test, y_train, y_test
-  X_train, X_test, y_train, y_test = train_test_split(\
-                                        combined_df.iloc[:trainset_length, :],\
-                                        target_col, random_state=2)
 
+
+def do_cross_validation():
+  linear_regression = LinearRegression()
+  scores = cross_validate(linear_regression, 
+                           X_train, y_train, 
+                           cv=10, return_train_score=True,
+                           scoring='neg_mean_squared_log_error')
+  test_RMSE = np.sqrt(-1 * scores['test_score']).mean()
+  train_RMSE = np.sqrt(-1 * scores['train_score']).mean()
+  print('test_RMSE: ', test_RMSE)
+  print('train_RMSE: ', train_RMSE)
 
 
 def train_model():
@@ -157,21 +166,8 @@ def train_model():
 
 
 def predict():
-  # global y_pred
-  # y_pred = linear_regression.predict(X_pred)
-  # y_pred[y_pred < target_col.min()] = target_col.min()
-
-  y_pred_on_trainset = linear_regression.predict(X_train)
-  y_pred = linear_regression.predict(X_test)
-  y_pred_on_trainset[y_pred_on_trainset < target_col.min()] = target_col.min()
-  y_pred[y_pred < target_col.min()] = target_col.min()
-  y_train_log = np.log(y_train)
-  y_test_log = np.log(y_test)
-  y_pred_on_trainset_log = np.log(y_pred_on_trainset)
-  y_pred_log = np.log(y_pred)
-  print('training RMSE: ', np.sqrt(mean_squared_error(y_pred_on_trainset_log, y_train_log)))
-  print('testing RMSE: ', np.sqrt(mean_squared_error(y_test_log, y_pred_log)))
-
+  global y_pred
+  y_pred = linear_regression.predict(X_pred)
 
 
 def write_result_csv():
@@ -191,7 +187,8 @@ def write_result_csv():
 
 
 def log_if_missing_data_exists(dataset_df):
-  print('There is data missing in dataset: ', 'YES' if dataset_df.isnull().sum().max() > 0 else 'NO')
+  print('There is data missing in dataset: ', 
+        'YES' if dataset_df.isnull().sum().max() > 0 else 'NO')
 
 
 
