@@ -60,14 +60,14 @@ def plot_top_corr_heatmap():
 def prepare_data():
   global train_df, test_df, combined_df, target_col
 
-  drop_features_from([TARGET], train_df)
+  drop_features_from_set([TARGET], train_df)
   train_df, target_col = remove_outliers_in(train_df, target_col)
   combined_df = concat_train_test_data(train_df, test_df)
   # combined_df = grasp_features_of_top_corr(combined_df)
   handle_missing_data(combined_df)
   combined_df = create_new_features(combined_df)
   combined_df = transform_features(combined_df)
-  drop_features_from(['Utilities', 'MiscFeature', 'MiscVal', 'BsmtFinSF2',
+  drop_features_from_set(['Utilities', 'MiscFeature', 'MiscVal', 'BsmtFinSF2',
                       'LowQualFinSF', 'Exterior2nd', 'PoolArea', 'PoolQC',
                       'Condition2', 'LandSlope', 'Street', 'Heating'], combined_df)
   # combined_df = one_hot_encode_categorical_features_of(combined_df)
@@ -95,7 +95,7 @@ def grasp_features_of_top_corr(dataset_df):
   return dataset_df[selected_features]
     
 
-def drop_features_from(feats_to_drop, dataset_df):
+def drop_features_from_set(feats_to_drop, dataset_df):
   dataset_df.drop(feats_to_drop, axis=1, inplace=True)
 
 
