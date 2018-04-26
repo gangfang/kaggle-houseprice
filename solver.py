@@ -8,11 +8,7 @@ import seaborn as sns
 from sklearn.feature_selection import SelectFromModel
 
 from sklearn.model_selection import cross_validate
-from sklearn.linear_model import LinearRegression, ElasticNet, \
-                                 Lasso, BayesianRidge, LassoLarsIC
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, \
-                             ExtraTreesRegressor
-from sklearn.kernel_ridge import KernelRidge
+from sklearn.linear_model import LinearRegression
 import xgboost as xgb
 
 np.set_printoptions(threshold=sys.maxsize)
@@ -40,16 +36,6 @@ def acquire_data():
   train_df = pd.read_csv('train.csv', header=0)
   test_df = pd.read_csv('test.csv', header=0)
   target_col = train_df[TARGET]
-
-
-def plot_top_corr_heatmap():
-  corr_matrix = train_df.corr(method='pearson')
-  cols = corr_matrix.nlargest(10, 'SalePrice').index
-  largest_corr_matrix = np.corrcoef(train_df[cols].values.T)
-  sns.heatmap(largest_corr_matrix, cbar=True, annot=True, 
-              square=True, fmt='.2f', annot_kws={'size': 10}, 
-              yticklabels=cols.values, xticklabels=cols.values)
-  plt.show()
   
 
 
@@ -60,16 +46,19 @@ def prepare_data():
   train_df, target_col = remove_outliers_in(train_df, target_col)
   combined_df = concat_train_test_data(train_df, test_df)
   handle_missing_data(combined_df)
-  combined_df = create_polynomial_features(combined_df)
+  create_polynomial_features(combined_df)
   combined_df = transform_features(combined_df)
   drop_features_from_set(['Utilities', 'MiscFeature', 'MiscVal', 'BsmtFinSF2',
                       'LowQualFinSF', 'Exterior2nd', 'PoolArea', 'PoolQC',
                       'Condition2', 'LandSlope', 'Street', 'Heating'], combined_df)
-  # combined_df = one_hot_encode_categorical_features_of(combined_df)
   split_train_test_data()
   log_transform(target_col)
   select_features_with_xgboost()
-  
+    
+
+def drop_features_from_set(feats_to_drop, dataset_df):
+  dataset_df.drop(feats_to_drop, axis=1, inplace=True)
+
 
 def remove_outliers_in(train_df, target_col):
   outliers_idx = train_df[(train_df['GrLivArea']>4000)].index
@@ -80,27 +69,36 @@ def remove_outliers_in(train_df, target_col):
 
 def concat_train_test_data(train_df, test_df):
   return pd.concat([train_df, test_df])
-    
-
-def drop_features_from_set(feats_to_drop, dataset_df):
-  dataset_df.drop(feats_to_drop, axis=1, inplace=True)
 
 
 def handle_missing_data(dataset_df):
+  fillna_with_None(dataset_df)
+  fillna_for_LotFrontage(dataset_df)
+  fillna_with_0(dataset_df)
+  fillna_with_mode(dataset_df)
+
+
+def fillna_with_None(dataset_df):
   for feature in ("PoolQC", "MiscFeature", "Alley", "Fence", "FireplaceQu",
                   "GarageType", "GarageFinish", "GarageQual", "GarageCond",
                   "BsmtQual", "BsmtCond", "BsmtExposure", "BsmtFinType1",
                   "BsmtFinType2", "MasVnrType"):
-    dataset_df[feature] = dataset_df[feature].fillna("None")
+    dataset_df[feature] = dataset_df[feature].fillna("None")  
 
+
+def fillna_for_LotFrontage(dataset_df):
   dataset_df["LotFrontage"] = dataset_df.groupby("Neighborhood")["LotFrontage"].transform(
-                            lambda x: x.fillna(x.median()))
+                          lambda x: x.fillna(x.median()))
 
+
+def fillna_with_0(dataset_df):
   for feature in ("GarageYrBlt", "GarageArea", "GarageCars", "BsmtFinSF1", 
-              "BsmtFinSF2", "BsmtUnfSF", "TotalBsmtSF", "MasVnrArea",
-              "BsmtFullBath", "BsmtHalfBath"):
-    dataset_df[feature] = dataset_df[feature].fillna(0)                  
-    
+                  "BsmtFinSF2", "BsmtUnfSF", "TotalBsmtSF", "MasVnrArea",
+                  "BsmtFullBath", "BsmtHalfBath"):
+    dataset_df[feature] = dataset_df[feature].fillna(0) 
+
+
+def fillna_with_mode(dataset_df):
   dataset_df['MSZoning'] = dataset_df['MSZoning']\
                            .fillna(dataset_df['MSZoning'].mode()[0])
   dataset_df['Electrical'] = dataset_df['Electrical']\
@@ -117,8 +115,13 @@ def handle_missing_data(dataset_df):
                              .fillna(dataset_df['Functional'].mode()[0])
 
 
-
 def create_polynomial_features(dataset_df):
+  create_quadratic_features(dataset_df)
+  create_cubic_features(dataset_df)
+  create_sqrt_features(dataset_df)
+
+
+def create_quadratic_features(dataset_df):
   dataset_df["OverallQual-2"] = dataset_df["OverallQual"] ** 2
   dataset_df["GrLivArea-2"] = dataset_df["GrLivArea"] ** 2
   dataset_df["GarageCars-2"] = dataset_df["GarageCars"] ** 2
@@ -135,6 +138,8 @@ def create_polynomial_features(dataset_df):
   dataset_df["OpenPorchSF-2"] = dataset_df["OpenPorchSF"] ** 2
   dataset_df["2ndFlrSF-2"] = dataset_df["2ndFlrSF"] ** 2
 
+
+def create_cubic_features(dataset_df):
   dataset_df["OverallQual-3"] = dataset_df["OverallQual"] ** 3
   dataset_df["GrLivArea-3"] = dataset_df["GrLivArea"] ** 3
   dataset_df["GarageCars-3"] = dataset_df["GarageCars"] ** 3
@@ -151,6 +156,8 @@ def create_polynomial_features(dataset_df):
   dataset_df["OpenPorchSF-3"] = dataset_df["OpenPorchSF"] ** 3
   dataset_df["2ndFlrSF-3"] = dataset_df["2ndFlrSF"] ** 3
 
+
+def create_sqrt_features(dataset_df):
   dataset_df["OverallQual-Sq"] = np.sqrt(dataset_df["OverallQual"])
   dataset_df["GrLivArea-Sq"] = np.sqrt(dataset_df["GrLivArea"])
   dataset_df["GarageCars-Sq"] = np.sqrt(dataset_df["GarageCars"])
@@ -166,54 +173,44 @@ def create_polynomial_features(dataset_df):
   dataset_df["WoodDeckSF-Sq"] = np.sqrt(dataset_df["WoodDeckSF"])
   dataset_df["OpenPorchSF-Sq"] = np.sqrt(dataset_df["OpenPorchSF"])
   dataset_df["2ndFlrSF-Sq"] = np.sqrt(dataset_df["2ndFlrSF"])
-  return dataset_df
 
 
 def transform_features(dataset_df):
-  dataset_df['BsmtQual'] = dataset_df['BsmtQual']\
-                           .map({"None":0, "Fa":1, "TA":2, "Gd":3, "Ex":4})
-  dataset_df['BsmtCond'] = dataset_df['BsmtCond']\
-                           .map({"None":0, "Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
-  dataset_df['BsmtExposure'] = dataset_df['BsmtExposure']\
-                               .map({"None":0, "No":1, "Mn":2, "Av":3, "Gd":4})                           
+  dataset_df = treat_special_features_in(dataset_df)
+  dataset_df = make_clusters_for(dataset_df)
+  dataset_df = make_flags_for(dataset_df)
+  dataset_df = make_bins_for(dataset_df)
+  dataset_df = represent_ordinal_in_num_in(dataset_df)
+  dataset_df = one_hot_encode_categorical_features_in(dataset_df)  
+  return dataset_df
 
-  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinType1"], prefix="BsmtFinType1")
 
-  dataset_df.loc[dataset_df['BsmtFinSF1']<=1002.5, 'BsmtFinSF1'] = 1
-  dataset_df.loc[(dataset_df['BsmtFinSF1']>1002.5) 
-               & (dataset_df['BsmtFinSF1']<=2005), 'BsmtFinSF1'] = 2
-  dataset_df.loc[(dataset_df['BsmtFinSF1']>2005) 
-               & (dataset_df['BsmtFinSF1']<=3007.5), 'BsmtFinSF1'] = 3
-  dataset_df.loc[dataset_df['BsmtFinSF1']>3007.5, 'BsmtFinSF1'] = 4
-  dataset_df['BsmtFinSF1'] = dataset_df['BsmtFinSF1'].astype(int)
-  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinSF1"], prefix="BsmtFinSF1")
-  
-  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinType2"], prefix="BsmtFinType2")
+def treat_special_features_in(dataset_df):
+  def Exter2(col):
+    if col['Exterior2nd'] == col['Exterior1st']:
+      return 1
+    else:
+      return 0
+  dataset_df['ExteriorMatch_Flag'] = dataset_df.apply(Exter2, axis=1)
 
-  dataset_df['BsmtFinSf2_Flag'] = dataset_df['BsmtFinSF2'].map(lambda x:0 if x==0 else 1)
+  def PoolFlag(col):
+    if col['PoolArea'] == 0:
+      return 0
+    else:
+      return 1
+  dataset_df['HasPool_Flag'] = dataset_df.apply(PoolFlag, axis=1)
 
-  dataset_df.loc[dataset_df['BsmtUnfSF']<=778.667, 'BsmtUnfSF'] = 1
-  dataset_df.loc[(dataset_df['BsmtUnfSF']>778.667) 
-                         & (dataset_df['BsmtUnfSF']<=1557.333), 'BsmtUnfSF'] = 2
-  dataset_df.loc[dataset_df['BsmtUnfSF']>1557.333, 'BsmtUnfSF'] = 3
-  dataset_df['BsmtUnfSF'] = dataset_df['BsmtUnfSF'].astype(int)
-  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtUnfSF"], prefix="BsmtUnfSF")  
+  def ConditionMatch(col):
+    if col['Condition1'] == col['Condition2']:
+      return 0
+    else:
+      return 1
+  dataset_df['Diff2ndCondition_Flag'] = dataset_df.apply(ConditionMatch, axis=1)
 
-  dataset_df['LowQualFinSF_Flag'] = dataset_df['LowQualFinSF']\
-                                      .map(lambda x:0 if x==0 else 1)
+  return dataset_df
 
-  dataset_df['KitchenQual'] = dataset_df['KitchenQual']\
-                              .map({"Fa":1, "TA":2, "Gd":3, "Ex":4})
 
-  dataset_df['FireplaceQu'] = dataset_df['FireplaceQu']\
-                              .map({"None":0, "Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
-
-  dataset_df['MSSubClass'] = dataset_df['MSSubClass'].astype(str)
-  dataset_df = pd.get_dummies(dataset_df, columns=["MSSubClass"], prefix="MSSubClass")
-
-  dataset_df['BldgType'] = dataset_df['BldgType'].astype(str)
-  dataset_df = pd.get_dummies(dataset_df, columns=["BldgType"], prefix="BldgType")  
-
+def make_clusters_for(dataset_df):
   dataset_df['HouseStyle'] = dataset_df['HouseStyle'].map({"2Story":"2Story", 
                                                       "1Story":"1Story", 
                                                       "1.5Fin":"1.5Story", 
@@ -222,68 +219,50 @@ def transform_features(dataset_df):
                                                       "SLvl":"SLvl", 
                                                       "2.5Unf":"2.5Story", 
                                                       "2.5Fin":"2.5Story"})
-  dataset_df = pd.get_dummies(dataset_df, columns=["HouseStyle"], prefix="HouseStyle")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["Foundation"], prefix="Foundation")
-
-  dataset_df['Functional'] = dataset_df['Functional'].map(
-                  {"Sev":1, "Maj2":2, "Maj1":3, "Mod":4, "Min2":5, "Min1":6, "Typ":7})
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["RoofStyle"], prefix="RoofStyle")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["RoofMatl"], prefix="RoofMatl")
-
-  def Exter2(col):
-    if col['Exterior2nd'] == col['Exterior1st']:
-        return 1
-    else:
-        return 0
-  dataset_df['ExteriorMatch_Flag'] = dataset_df.apply(Exter2, axis=1)
-  dataset_df = pd.get_dummies(dataset_df, columns=["Exterior1st"], prefix="Exterior1st")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["MasVnrType"], prefix="MasVnrType")
-
-  dataset_df['ExterQual'] = dataset_df['ExterQual'].map({"Fa":1, "TA":2, "Gd":3, "Ex":4})
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["ExterCond"], prefix="ExterCond")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["GarageType"], prefix="GarageType")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["GarageFinish"], prefix="GarageFinish")
-
-  dataset_df['GarageQual'] = dataset_df['GarageQual'].map(
-    {"None":0, "Po":1, "Fa":1, "TA":2, "Gd":3, "Ex":3})
-
   dataset_df['GarageCond'] = dataset_df['GarageCond'].map(
-    {"None":"None", "Po":"Low", "Fa":"Low", "TA":"TA", "Gd":"High", "Ex":"High"})
-  dataset_df = pd.get_dummies(dataset_df, columns=["GarageCond"], prefix="GarageCond")
-
-  def PoolFlag(col):
-    if col['PoolArea'] == 0:
-        return 0
-    else:
-        return 1
-  dataset_df['HasPool_Flag'] = dataset_df.apply(PoolFlag, axis=1)
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["Fence"], prefix="Fence")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["MSZoning"], prefix="MSZoning")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["Neighborhood"], prefix="Neighborhood")
-
+    {"None":"None", "Po":"Low", "Fa":"Low", "TA":"TA", "Gd":"High", "Ex":"High"})    
   dataset_df['Condition1'] = dataset_df['Condition1'].map(
     {"Norm":"Norm", "Feedr":"Street", "PosN":"Pos", "Artery":"Street", "RRAe":"Train",
      "RRNn":"Train", "RRAn":"Train", "PosA":"Pos", "RRNe":"Train"})
   dataset_df['Condition2'] = dataset_df['Condition2'].map(
     {"Norm":"Norm", "Feedr":"Street", "PosN":"Pos", "Artery":"Street", "RRAe":"Train",
-     "RRNn":"Train", "RRAn":"Train", "PosA":"Pos", "RRNe":"Train"})
-  def ConditionMatch(col):
-    if col['Condition1'] == col['Condition2']:
-        return 0
-    else:
-        return 1
-  dataset_df['Diff2ndCondition_Flag'] = dataset_df.apply(ConditionMatch, axis=1)
-  dataset_df = pd.get_dummies(dataset_df, columns=["Condition1"], prefix="Condition1")
+     "RRNn":"Train", "RRAn":"Train", "PosA":"Pos", "RRNe":"Train"})     
+  dataset_df['Electrical'] = dataset_df['Electrical'].map(
+                                                      {"SBrkr":"SBrkr", "FuseF":"Fuse", 
+                                                       "FuseA":"Fuse", "FuseP":"Fuse", 
+                                                       "Mix":"Mix"})  
+  dataset_df['SaleType'] = dataset_df['SaleType'].map(
+                                                {"WD":"WD", "New":"New", "COD":"COD", 
+                                                "CWD":"CWD", "ConLD":"Oth", "ConLI":"Oth", 
+                                                "ConLw":"Oth", "Con":"Oth", "Oth":"Oth"})                                                                                                          
+  return dataset_df
+
+
+def make_flags_for(dataset_df):
+  dataset_df['BsmtFinSf2_Flag'] = dataset_df['BsmtFinSF2'].map(lambda x:0 if x==0 else 1)
+  dataset_df['LowQualFinSF_Flag'] = dataset_df['LowQualFinSF']\
+                                    .map(lambda x:0 if x==0 else 1)
+  dataset_df['GentleSlope_Flag'] = dataset_df['LandSlope'].map({"Gtl":1, "Mod":0, "Sev":0}) 
+  dataset_df['GasA_Flag'] = dataset_df['Heating']\
+                      .map({"GasA":1, "GasW":0, "Grav":0, "Wall":0, "OthW":0, "Floor":0})  
+  dataset_df['CentralAir'] = dataset_df['CentralAir'].map({"Y":1, "N":0})                      
+  return dataset_df  
+
+
+def make_bins_for(dataset_df):
+  dataset_df.loc[dataset_df['BsmtFinSF1']<=1002.5, 'BsmtFinSF1'] = 1
+  dataset_df.loc[(dataset_df['BsmtFinSF1']>1002.5) 
+               & (dataset_df['BsmtFinSF1']<=2005), 'BsmtFinSF1'] = 2
+  dataset_df.loc[(dataset_df['BsmtFinSF1']>2005) 
+               & (dataset_df['BsmtFinSF1']<=3007.5), 'BsmtFinSF1'] = 3
+  dataset_df.loc[dataset_df['BsmtFinSF1']>3007.5, 'BsmtFinSF1'] = 4
+  dataset_df['BsmtFinSF1'] = dataset_df['BsmtFinSF1'].astype(int)  
+
+  dataset_df.loc[dataset_df['BsmtUnfSF']<=778.667, 'BsmtUnfSF'] = 1
+  dataset_df.loc[(dataset_df['BsmtUnfSF']>778.667) 
+                         & (dataset_df['BsmtUnfSF']<=1557.333), 'BsmtUnfSF'] = 2
+  dataset_df.loc[dataset_df['BsmtUnfSF']>1557.333, 'BsmtUnfSF'] = 3
+  dataset_df['BsmtUnfSF'] = dataset_df['BsmtUnfSF'].astype(int)  
 
   dataset_df.loc[dataset_df['LotArea']<=5684.75, 'LotArea'] = 1
   dataset_df.loc[(dataset_df['LotArea']>5684.75) 
@@ -299,52 +278,67 @@ def transform_features(dataset_df):
   dataset_df.loc[(dataset_df['LotArea']>11554.25) 
                  & (dataset_df['LotArea']<=13613), 'LotArea'] = 7
   dataset_df.loc[dataset_df['LotArea']>13613, 'LotArea'] = 8
-  dataset_df['LotArea'] = dataset_df['LotArea'].astype(int)
-  dataset_df = pd.get_dummies(dataset_df, columns=["LotArea"], prefix="LotArea")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["LotShape"], prefix="LotShape")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["LandContour"], prefix="LandContour")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["LotConfig"], prefix="LotConfig")
-
-  dataset_df['GentleSlope_Flag'] = dataset_df['LandSlope'].map({"Gtl":1, "Mod":0, "Sev":0})
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["Alley"], prefix="Alley")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["PavedDrive"], prefix="PavedDrive")
-
-  dataset_df['GasA_Flag'] = dataset_df['Heating']\
-                      .map({"GasA":1, "GasW":0, "Grav":0, "Wall":0, "OthW":0, "Floor":0})
-
-  dataset_df['HeatingQC'] = dataset_df['HeatingQC']\
-                            .map({"Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
-
-  dataset_df['CentralAir'] = dataset_df['CentralAir'].map({"Y":1, "N":0})
-
-  dataset_df['Electrical'] = dataset_df['Electrical'].map(
-                                                      {"SBrkr":"SBrkr", "FuseF":"Fuse", 
-                                                       "FuseA":"Fuse", "FuseP":"Fuse", 
-                                                       "Mix":"Mix"})
-  dataset_df = pd.get_dummies(dataset_df, columns=["Electrical"], prefix="Electrical")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["MoSold"], prefix="MoSold")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["YrSold"], prefix="YrSold")
-
-  dataset_df['SaleType'] = dataset_df['SaleType'].map(
-                                                {"WD":"WD", "New":"New", "COD":"COD", 
-                                                "CWD":"CWD", "ConLD":"Oth", "ConLI":"Oth", 
-                                                "ConLw":"Oth", "Con":"Oth", "Oth":"Oth"})
-  dataset_df = pd.get_dummies(dataset_df, columns=["SaleType"], prefix="SaleType")
-
-  dataset_df = pd.get_dummies(dataset_df, columns=["SaleCondition"], prefix="SaleCondition")
+  dataset_df['LotArea'] = dataset_df['LotArea'].astype(int)  
 
   return dataset_df
 
 
-def one_hot_encode_categorical_features_of(dataset_df):
-  pass
+def represent_ordinal_in_num_in(dataset_df):
+  dataset_df['BsmtQual'] = dataset_df['BsmtQual']\
+                           .map({"None":0, "Fa":1, "TA":2, "Gd":3, "Ex":4})
+  dataset_df['BsmtCond'] = dataset_df['BsmtCond']\
+                           .map({"None":0, "Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
+  dataset_df['BsmtExposure'] = dataset_df['BsmtExposure']\
+                               .map({"None":0, "No":1, "Mn":2, "Av":3, "Gd":4})   
+  dataset_df['KitchenQual'] = dataset_df['KitchenQual']\
+                              .map({"Fa":1, "TA":2, "Gd":3, "Ex":4})
+  dataset_df['FireplaceQu'] = dataset_df['FireplaceQu']\
+                              .map({"None":0, "Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})  
+  dataset_df['Functional'] = dataset_df['Functional'].map(
+                  {"Sev":1, "Maj2":2, "Maj1":3, "Mod":4, "Min2":5, "Min1":6, "Typ":7})  
+  dataset_df['ExterQual'] = dataset_df['ExterQual'].map({"Fa":1, "TA":2, "Gd":3, "Ex":4})
+  dataset_df['GarageQual'] = dataset_df['GarageQual'].map(
+    {"None":0, "Po":1, "Fa":1, "TA":2, "Gd":3, "Ex":3})     
+  dataset_df['HeatingQC'] = dataset_df['HeatingQC']\
+                            .map({"Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})                                                                           
+  return dataset_df
+
+
+def one_hot_encode_categorical_features_in(dataset_df):
+  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinType1"], prefix="BsmtFinType1")
+  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinSF1"], prefix="BsmtFinSF1")
+  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinType2"], prefix="BsmtFinType2")
+  dataset_df = pd.get_dummies(dataset_df, columns=["BsmtUnfSF"], prefix="BsmtUnfSF")  
+  dataset_df['MSSubClass'] = dataset_df['MSSubClass'].astype(str)
+  dataset_df = pd.get_dummies(dataset_df, columns=["MSSubClass"], prefix="MSSubClass")
+  dataset_df['BldgType'] = dataset_df['BldgType'].astype(str)
+  dataset_df = pd.get_dummies(dataset_df, columns=["BldgType"], prefix="BldgType")    
+  dataset_df = pd.get_dummies(dataset_df, columns=["HouseStyle"], prefix="HouseStyle")
+  dataset_df = pd.get_dummies(dataset_df, columns=["Foundation"], prefix="Foundation")  
+  dataset_df = pd.get_dummies(dataset_df, columns=["RoofStyle"], prefix="RoofStyle")
+  dataset_df = pd.get_dummies(dataset_df, columns=["RoofMatl"], prefix="RoofMatl")  
+  dataset_df = pd.get_dummies(dataset_df, columns=["Exterior1st"], prefix="Exterior1st")
+  dataset_df = pd.get_dummies(dataset_df, columns=["MasVnrType"], prefix="MasVnrType")
+  dataset_df = pd.get_dummies(dataset_df, columns=["ExterCond"], prefix="ExterCond")
+  dataset_df = pd.get_dummies(dataset_df, columns=["GarageType"], prefix="GarageType")
+  dataset_df = pd.get_dummies(dataset_df, columns=["GarageFinish"], prefix="GarageFinish") 
+  dataset_df = pd.get_dummies(dataset_df, columns=["GarageCond"], prefix="GarageCond") 
+  dataset_df = pd.get_dummies(dataset_df, columns=["Fence"], prefix="Fence")
+  dataset_df = pd.get_dummies(dataset_df, columns=["MSZoning"], prefix="MSZoning")
+  dataset_df = pd.get_dummies(dataset_df, columns=["Neighborhood"], prefix="Neighborhood")
+  dataset_df = pd.get_dummies(dataset_df, columns=["Condition1"], prefix="Condition1") 
+  dataset_df = pd.get_dummies(dataset_df, columns=["LotArea"], prefix="LotArea")
+  dataset_df = pd.get_dummies(dataset_df, columns=["LotShape"], prefix="LotShape")
+  dataset_df = pd.get_dummies(dataset_df, columns=["LandContour"], prefix="LandContour")
+  dataset_df = pd.get_dummies(dataset_df, columns=["LotConfig"], prefix="LotConfig")  
+  dataset_df = pd.get_dummies(dataset_df, columns=["Alley"], prefix="Alley")
+  dataset_df = pd.get_dummies(dataset_df, columns=["PavedDrive"], prefix="PavedDrive") 
+  dataset_df = pd.get_dummies(dataset_df, columns=["Electrical"], prefix="Electrical")
+  dataset_df = pd.get_dummies(dataset_df, columns=["MoSold"], prefix="MoSold")
+  dataset_df = pd.get_dummies(dataset_df, columns=["YrSold"], prefix="YrSold")   
+  dataset_df = pd.get_dummies(dataset_df, columns=["SaleType"], prefix="SaleType")
+  dataset_df = pd.get_dummies(dataset_df, columns=["SaleCondition"], prefix="SaleCondition")   
+  return dataset_df
 
 
 def split_train_test_data():
@@ -407,10 +401,10 @@ def exponentiate_pred_result():
 
 
 def write_result_csv():
-  filename = 'submission.csv'
   START_ID = 1461
   TESTSET_SIZE = test_df.shape[0]
   END_ID = START_ID + TESTSET_SIZE
+  filename = 'submission.csv'
   headers = 'Id,SalePrice\n'
 
   f = open(filename, 'w')

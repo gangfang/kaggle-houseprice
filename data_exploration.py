@@ -52,6 +52,16 @@ def understand_data():
 
 
 
+def plot_top_corr_heatmap():
+  corr_matrix = train_df.corr(method='pearson')
+  cols = corr_matrix.nlargest(10, 'SalePrice').index
+  largest_corr_matrix = np.corrcoef(train_df[cols].values.T)
+  sns.heatmap(largest_corr_matrix, cbar=True, annot=True, 
+              square=True, fmt='.2f', annot_kws={'size': 10}, 
+              yticklabels=cols.values, xticklabels=cols.values)
+  plt.show()
+
+
 
 acquire_data()
 understand_data()
