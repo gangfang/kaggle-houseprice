@@ -337,16 +337,18 @@ def transform_features(dataset_df):
 
   dataset_df = pd.get_dummies(dataset_df, columns=["PavedDrive"], prefix="PavedDrive")
 
-  dataset_df['GasA_Flag'] = dataset_df['Heating'].map(
-    {"GasA":1, "GasW":0, "Grav":0, "Wall":0, "OthW":0, "Floor":0})
+  dataset_df['GasA_Flag'] = dataset_df['Heating']\
+                      .map({"GasA":1, "GasW":0, "Grav":0, "Wall":0, "OthW":0, "Floor":0})
 
-  dataset_df['HeatingQC'] = dataset_df['HeatingQC'].map(
-    {"Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
+  dataset_df['HeatingQC'] = dataset_df['HeatingQC']\
+                            .map({"Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
 
   dataset_df['CentralAir'] = dataset_df['CentralAir'].map({"Y":1, "N":0})
 
   dataset_df['Electrical'] = dataset_df['Electrical'].map(
-    {"SBrkr":"SBrkr", "FuseF":"Fuse", "FuseA":"Fuse", "FuseP":"Fuse", "Mix":"Mix"})
+                                                      {"SBrkr":"SBrkr", "FuseF":"Fuse", 
+                                                       "FuseA":"Fuse", "FuseP":"Fuse", 
+                                                       "Mix":"Mix"})
   dataset_df = pd.get_dummies(dataset_df, columns=["Electrical"], prefix="Electrical")
 
   dataset_df = pd.get_dummies(dataset_df, columns=["MoSold"], prefix="MoSold")
@@ -354,8 +356,9 @@ def transform_features(dataset_df):
   dataset_df = pd.get_dummies(dataset_df, columns=["YrSold"], prefix="YrSold")
 
   dataset_df['SaleType'] = dataset_df['SaleType'].map(
-    {"WD":"WD", "New":"New", "COD":"COD", "CWD":"CWD", 
-      "ConLD":"Oth", "ConLI":"Oth", "ConLw":"Oth", "Con":"Oth", "Oth":"Oth"})
+                                                {"WD":"WD", "New":"New", "COD":"COD", 
+                                                "CWD":"CWD", "ConLD":"Oth", "ConLI":"Oth", 
+                                                "ConLw":"Oth", "Con":"Oth", "Oth":"Oth"})
   dataset_df = pd.get_dummies(dataset_df, columns=["SaleType"], prefix="SaleType")
 
   dataset_df = pd.get_dummies(dataset_df, columns=["SaleCondition"], prefix="SaleCondition")
