@@ -5,9 +5,11 @@ import sys
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from sklearn.feature_selection import SelectFromModel
+
 from sklearn.model_selection import cross_validate
-from sklearn.linear_model import LinearRegression, \
-                                 ElasticNet, Lasso, BayesianRidge, LassoLarsIC
+from sklearn.linear_model import LinearRegression, ElasticNet, \
+                                 Lasso, BayesianRidge, LassoLarsIC
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, \
                              ExtraTreesRegressor
 from sklearn.kernel_ridge import KernelRidge
@@ -57,9 +59,8 @@ def prepare_data():
   drop_features_from_set([TARGET], train_df)
   train_df, target_col = remove_outliers_in(train_df, target_col)
   combined_df = concat_train_test_data(train_df, test_df)
-  # combined_df = grasp_features_of_top_corr(combined_df)
   handle_missing_data(combined_df)
-  combined_df = create_new_features(combined_df)
+  combined_df = create_polynomial_features(combined_df)
   combined_df = transform_features(combined_df)
   drop_features_from_set(['Utilities', 'MiscFeature', 'MiscVal', 'BsmtFinSF2',
                       'LowQualFinSF', 'Exterior2nd', 'PoolArea', 'PoolQC',
@@ -67,6 +68,7 @@ def prepare_data():
   # combined_df = one_hot_encode_categorical_features_of(combined_df)
   split_train_test_data()
   log_transform(target_col)
+  select_features_with_xgboost()
   
 
 def remove_outliers_in(train_df, target_col):
@@ -78,15 +80,6 @@ def remove_outliers_in(train_df, target_col):
 
 def concat_train_test_data(train_df, test_df):
   return pd.concat([train_df, test_df])
-
-
-def grasp_features_of_top_corr(dataset_df):
-  selected_features = ['OverallQual', 'GrLivArea', 'GarageCars', \
-                       'GarageArea', 'TotalBsmtSF', 'LotFrontage',\
-                       'FullBath', 'TotRmsAbvGrd', 'YearBuilt', \
-                       'YearRemodAdd', 'ExterQual', 'BsmtQual', \
-                       'Neighborhood', '1stFlrSF']
-  return dataset_df[selected_features]
     
 
 def drop_features_from_set(feats_to_drop, dataset_df):
@@ -125,7 +118,7 @@ def handle_missing_data(dataset_df):
 
 
 
-def create_new_features(dataset_df):
+def create_polynomial_features(dataset_df):
   dataset_df["OverallQual-2"] = dataset_df["OverallQual"] ** 2
   dataset_df["GrLivArea-2"] = dataset_df["GrLivArea"] ** 2
   dataset_df["GarageCars-2"] = dataset_df["GarageCars"] ** 2
@@ -206,16 +199,8 @@ def transform_features(dataset_df):
   dataset_df['BsmtUnfSF'] = dataset_df['BsmtUnfSF'].astype(int)
   dataset_df = pd.get_dummies(dataset_df, columns=["BsmtUnfSF"], prefix="BsmtUnfSF")  
 
-  # TotalBsmtSF
-
-  # 1stFlrSF
-
-  # 2ndFlrSF
-
   dataset_df['LowQualFinSF_Flag'] = dataset_df['LowQualFinSF']\
                                       .map(lambda x:0 if x==0 else 1)
-
-  # TotalBathrooms
 
   dataset_df['KitchenQual'] = dataset_df['KitchenQual']\
                               .map({"Fa":1, "TA":2, "Gd":3, "Ex":4})
@@ -238,8 +223,6 @@ def transform_features(dataset_df):
                                                       "2.5Unf":"2.5Story", 
                                                       "2.5Fin":"2.5Story"})
   dataset_df = pd.get_dummies(dataset_df, columns=["HouseStyle"], prefix="HouseStyle")
-
-  # Remod_Diff
 
   dataset_df = pd.get_dummies(dataset_df, columns=["Foundation"], prefix="Foundation")
 
@@ -268,18 +251,12 @@ def transform_features(dataset_df):
 
   dataset_df = pd.get_dummies(dataset_df, columns=["GarageFinish"], prefix="GarageFinish")
 
-  # GarageArea
-
   dataset_df['GarageQual'] = dataset_df['GarageQual'].map(
     {"None":0, "Po":1, "Fa":1, "TA":2, "Gd":3, "Ex":3})
 
   dataset_df['GarageCond'] = dataset_df['GarageCond'].map(
     {"None":"None", "Po":"Low", "Fa":"Low", "TA":"TA", "Gd":"High", "Ex":"High"})
   dataset_df = pd.get_dummies(dataset_df, columns=["GarageCond"], prefix="GarageCond")
-
-  # WoodDeckSF
-
-  # TotalPorchSF
 
   def PoolFlag(col):
     if col['PoolArea'] == 0:
@@ -368,10 +345,6 @@ def transform_features(dataset_df):
 
 def one_hot_encode_categorical_features_of(dataset_df):
   pass
-  # return pd.get_dummies(dataset_df, 
-  #                       columns=['Neighborhood'], prefix='Neighborhood', 
-  #                       dummy_na=True, drop_first=True)
-  # return pd.get_dummies(dataset_df, dummy_na=True, drop_first=True)
 
 
 def split_train_test_data():
@@ -390,9 +363,17 @@ def log_transform(target_col):
   y_train = np.log1p(target_col)
 
 
+def select_features_with_xgboost():
+  global X_train, X_pred
+  xg_boost = xgb.XGBRegressor()
+  xg_boost.fit(X_train, y_train)
+  xgb_feat_reduction = SelectFromModel(xg_boost, prefit=True)
+  X_train = xgb_feat_reduction.transform(X_train)
+  X_pred = xgb_feat_reduction.transform(X_pred)
+
+
 
 def do_cross_validation():
-
   linear_regression = LinearRegression()
 
   scores = cross_validate(linear_regression, 
