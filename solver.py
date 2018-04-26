@@ -18,7 +18,7 @@ np.set_printoptions(threshold=sys.maxsize)
 import warnings
 warnings.filterwarnings(action="ignore", module="scipy", message="^internal gelsd")
 
-
+TARGET = 'SalePrice'
 
 
 def main():
@@ -34,13 +34,11 @@ def main():
 
 
 def acquire_data():
-  TARGET = 'SalePrice'
   global train_df, test_df, target_col
 
   train_df = pd.read_csv('train.csv', header=0)
   test_df = pd.read_csv('test.csv', header=0)
   target_col = train_df[TARGET]
-  train_df = train_df.drop([TARGET], axis=1)
 
 
 def understand_data():
@@ -61,13 +59,17 @@ def plot_top_corr_heatmap():
 
 def prepare_data():
   global train_df, test_df, combined_df, target_col
+
+  drop_features_from([TARGET], train_df)
   train_df, target_col = remove_outliers_in(train_df, target_col)
   combined_df = concat_train_test_data(train_df, test_df)
   # combined_df = grasp_features_of_top_corr(combined_df)
   handle_missing_data(combined_df)
-  combined_df = drop_useless_features_from(combined_df)
   combined_df = create_new_features(combined_df)
   combined_df = transform_features(combined_df)
+  drop_features_from(['Utilities', 'MiscFeature', 'MiscVal', 'BsmtFinSF2',
+                      'LowQualFinSF', 'Exterior2nd', 'PoolArea', 'PoolQC',
+                      'Condition2', 'LandSlope', 'Street', 'Heating'], combined_df)
   # combined_df = one_hot_encode_categorical_features_of(combined_df)
   split_train_test_data()
   log_transform(target_col)
@@ -93,8 +95,8 @@ def grasp_features_of_top_corr(dataset_df):
   return dataset_df[selected_features]
     
 
-def drop_useless_features_from(dataset_df):
-  return dataset_df.drop(['Utilities', 'MiscFeature', 'MiscVal'], axis=1)
+def drop_features_from(feats_to_drop, dataset_df):
+  dataset_df.drop(feats_to_drop, axis=1, inplace=True)
 
 
 def handle_missing_data(dataset_df):
@@ -127,11 +129,6 @@ def handle_missing_data(dataset_df):
   dataset_df["Functional"] = dataset_df["Functional"]\
                              .fillna(dataset_df['Functional'].mode()[0])
 
-# dataset_df['LotFrontage'].fillna(dataset_df['LotFrontage'].dropna().median(), inplace=True)
-# dataset_df['BsmtQual'].fillna('None', inplace=True)
-# dataset_df['TotalBsmtSF'].fillna(dataset_df['TotalBsmtSF'].dropna().median(), inplace=True)
-# dataset_df['GarageCars'].fillna(2, inplace=True)
-# dataset_df['GarageArea'].fillna(dataset_df['GarageArea'].dropna().median(), inplace=True)
 
 
 def create_new_features(dataset_df):
@@ -207,7 +204,6 @@ def transform_features(dataset_df):
   dataset_df = pd.get_dummies(dataset_df, columns=["BsmtFinType2"], prefix="BsmtFinType2")
 
   dataset_df['BsmtFinSf2_Flag'] = dataset_df['BsmtFinSF2'].map(lambda x:0 if x==0 else 1)
-  dataset_df.drop('BsmtFinSF2', axis=1, inplace=True)
 
   dataset_df.loc[dataset_df['BsmtUnfSF']<=778.667, 'BsmtUnfSF'] = 1
   dataset_df.loc[(dataset_df['BsmtUnfSF']>778.667) 
@@ -222,8 +218,8 @@ def transform_features(dataset_df):
 
   # 2ndFlrSF
 
-  dataset_df['LowQualFinSF_Flag'] = dataset_df['LowQualFinSF'].map(lambda x:0 if x==0 else 1)
-  dataset_df.drop('LowQualFinSF', axis=1, inplace=True)
+  dataset_df['LowQualFinSF_Flag'] = dataset_df['LowQualFinSF']\
+                                      .map(lambda x:0 if x==0 else 1)
 
   # TotalBathrooms
 
@@ -266,7 +262,6 @@ def transform_features(dataset_df):
     else:
         return 0
   dataset_df['ExteriorMatch_Flag'] = dataset_df.apply(Exter2, axis=1)
-  dataset_df.drop('Exterior2nd', axis=1, inplace=True)
   dataset_df = pd.get_dummies(dataset_df, columns=["Exterior1st"], prefix="Exterior1st")
 
   dataset_df = pd.get_dummies(dataset_df, columns=["MasVnrType"], prefix="MasVnrType")
@@ -298,9 +293,6 @@ def transform_features(dataset_df):
     else:
         return 1
   dataset_df['HasPool_Flag'] = dataset_df.apply(PoolFlag, axis=1)
-  dataset_df.drop('PoolArea', axis=1, inplace=True)
-
-  dataset_df.drop('PoolQC', axis=1, inplace=True)
 
   dataset_df = pd.get_dummies(dataset_df, columns=["Fence"], prefix="Fence")
 
@@ -320,10 +312,8 @@ def transform_features(dataset_df):
     else:
         return 1
   dataset_df['Diff2ndCondition_Flag'] = dataset_df.apply(ConditionMatch, axis=1)
-  dataset_df.drop('Condition2', axis=1, inplace=True)
   dataset_df = pd.get_dummies(dataset_df, columns=["Condition1"], prefix="Condition1")
 
-  dataset_df['LotArea_Band'] = pd.qcut(dataset_df['LotArea'], 8)
   dataset_df.loc[dataset_df['LotArea']<=5684.75, 'LotArea'] = 1
   dataset_df.loc[(dataset_df['LotArea']>5684.75) 
                  & (dataset_df['LotArea']<=7474), 'LotArea'] = 2
@@ -339,7 +329,6 @@ def transform_features(dataset_df):
                  & (dataset_df['LotArea']<=13613), 'LotArea'] = 7
   dataset_df.loc[dataset_df['LotArea']>13613, 'LotArea'] = 8
   dataset_df['LotArea'] = dataset_df['LotArea'].astype(int)
-  dataset_df.drop('LotArea_Band', axis=1, inplace=True)
   dataset_df = pd.get_dummies(dataset_df, columns=["LotArea"], prefix="LotArea")
 
   dataset_df = pd.get_dummies(dataset_df, columns=["LotShape"], prefix="LotShape")
@@ -349,9 +338,6 @@ def transform_features(dataset_df):
   dataset_df = pd.get_dummies(dataset_df, columns=["LotConfig"], prefix="LotConfig")
 
   dataset_df['GentleSlope_Flag'] = dataset_df['LandSlope'].map({"Gtl":1, "Mod":0, "Sev":0})
-  dataset_df.drop('LandSlope', axis=1, inplace=True)
-
-  dataset_df.drop('Street', axis=1, inplace=True)
 
   dataset_df = pd.get_dummies(dataset_df, columns=["Alley"], prefix="Alley")
 
@@ -359,7 +345,6 @@ def transform_features(dataset_df):
 
   dataset_df['GasA_Flag'] = dataset_df['Heating'].map(
     {"GasA":1, "GasW":0, "Grav":0, "Wall":0, "OthW":0, "Floor":0})
-  dataset_df.drop('Heating', axis=1, inplace=True)
 
   dataset_df['HeatingQC'] = dataset_df['HeatingQC'].map(
     {"Po":1, "Fa":2, "TA":3, "Gd":4, "Ex":5})
