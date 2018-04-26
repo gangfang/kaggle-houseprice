@@ -23,7 +23,6 @@ TARGET = 'SalePrice'
 
 def main():
   acquire_data()
-  # understand_data()
   prepare_data()
   do_cross_validation()
   train_model()
@@ -39,11 +38,6 @@ def acquire_data():
   train_df = pd.read_csv('train.csv', header=0)
   test_df = pd.read_csv('test.csv', header=0)
   target_col = train_df[TARGET]
-
-
-def understand_data():
-  train_df.info()
-  test_df.info()
 
 
 def plot_top_corr_heatmap():
